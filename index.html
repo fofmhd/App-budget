@@ -23,12 +23,12 @@ input,select{flex:1;min-width:90px}
 label.row input{max-width:140px;text-align:right;flex:none}
 button.pr{background:var(--ac);color:#fff;border:0}
 #nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--cd);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom,0px)}
-#nav button{flex:1;border:0;border-radius:0;padding:14px 4px;background:none}#nav .on{color:var(--ac);font-weight:700}
+#nav button{flex:1;border:0;border-radius:0;padding:14px 2px;background:none;font-size:13px}#nav .on{color:var(--ac);font-weight:700}
 </style></head><body>
 <div id="app"></div><nav id="nav"></nav>
 <script>
 const E="Épargne";
-const D={base:0,goals:[500000,3000000,4000000],month:new Date().toISOString().slice(0,7),plan:{[new Date().toISOString().slice(0,7)]:{salaire:0,business:0,items:{Loyer:0,Eau:0,Courant:0,Loisirs:0,"Imprévus":0}}},tx:[],owed:[],debts:[],biz:[]};
+const D={base:0,goals:[],month:new Date().toISOString().slice(0,7),plan:{[new Date().toISOString().slice(0,7)]:{salaire:0,business:0,items:{Loyer:0,Eau:0,Courant:0,Loisirs:0,"Imprévus":0}}},tx:[],owed:[],debts:[],biz:[]};
 let S=JSON.parse(JSON.stringify(D)),tab=0,ref=null,st="";
 const $=id=>document.getElementById(id),f=n=>Math.round(n).toLocaleString("fr-FR")+" F";
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -42,37 +42,46 @@ dep=e=>sum(tx.filter(t=>t.env===e).map(t=>t.dep)),over=sum(it.map(e=>Math.max(0,
 rec=pays(S.owed,m),paid=pays(S.debts,m),loans=sum(S.owed.filter(x=>x.d&&ym(x.d)===m).map(x=>x.amt)),rev=p.salaire+p.business+rec;
 return{p,it,pl,dep,over,ret,rec,paid,loans,rev,save:rev-pl-paid-over-ret-loans}}
 function months(){const a=[];let[y,m]=Object.keys(S.plan).sort()[0].split("-").map(Number);for(;;){const k=y+"-"+String(m).padStart(2,"0");if(k>S.month)break;a.push(k);if(++m>12){m=1;y++}}return a}
+const start=()=>Object.keys(S.plan).sort()[0];
+function fix(){S.goals=(S.goals||[]).map((g,i)=>typeof g==="number"?{n:i?"Objectif "+i:"Base de sécurité",a:g}:g);if(S.month<start())S.month=start()}
 const total=()=>S.base+sum(months().map(m=>calc(m).save));
-function mv(d){let[y,m]=S.month.split("-").map(Number);m+=d;if(m>12){m=1;y++}if(m<1){m=12;y--}S.month=y+"-"+String(m).padStart(2,"0");save();render()}
+function mv(d){let[y,m]=S.month.split("-").map(Number);m+=d;if(m>12){m=1;y++}if(m<1){m=12;y--}const nm=y+"-"+String(m).padStart(2,"0");if(nm<start())return;S.month=nm;save();render()}
 function home(c){const t=total(),bad=t<S.base||c.save<0,warn=c.over+c.ret+c.loans>0;
 let h=`<div class="card ${bad?"ko":warn?"wa":"ok"}">${bad?"⚠ Ton épargne est entamée":warn?"⚠ Dépassement, retrait ou prêt : l’épargne du mois baisse":"✔ Tout est dans le budget"}</div>`;
 h+=`<div class=card><span class=mut>Épargne du mois</span><div class=big>${f(c.save)}</div><span class=mut>Total épargne</span><div class=big2>${f(t)}</div></div>`;
 const L=[["Salaire",c.p.salaire],["Business",c.p.business],["Remboursements reçus",c.rec],["Dépenses prévues",-c.pl],["Dettes payées",-c.paid],["Dépassements",-c.over],["Retraits sur l’épargne",-c.ret],["Prêts donnés",-c.loans]];
 h+=`<div class=card>${L.map(([a,b])=>`<div class=row><span>${a}</span><b class="${b<0?"neg":""}">${f(b)}</b></div>`).join("")}</div>`;
-h+=`<div class=card><b>Objectifs d’épargne</b>${S.goals.map(g=>{const p=Math.max(0,Math.min(100,t/g*100));return`<div class=row><span>${f(g)}</span><b>${p.toFixed(1)} %</b></div><div class=bar><i style="width:${p}%"></i></div>`}).join("")}</div>`;
+h+=`<div class=card><b>Objectifs d’épargne</b>${S.goals.length?"":"<p class=mut>Ajoute tes objectifs dans Réglages.</p>"}${S.goals.map(g=>{const p=g.a?Math.max(0,Math.min(100,t/g.a*100)):0;return`<div class=row><span>${esc(g.n)} · ${f(g.a)}</span><b>${p.toFixed(1)} %</b></div><div class=bar><i style="width:${p}%"></i></div><div class="mut sm">${t>=g.a?"✔ Atteint":"Reste "+f(g.a-t)}</div>`}).join("")}</div>`;
 h+=`<div class=card><b>Enveloppes du mois</b>${c.it.map(e=>{const d=c.dep(e),b=c.p.items[e],o=d>b;return`<div class=row><span>${e}</span><b class="${o?"neg":""}">${f(d)} / ${f(b)}</b></div>`+(o?`<div class="neg sm">+${f(d-b)} en trop : l’épargne baisse</div>`:`<div class=bar><i style="width:${b?Math.min(100,d/b*100):0}%"></i></div>`)}).join("")}</div>`;
 return h}
+function savings(){const ms=months(),t=total();
+return`<div class=card><span class=mut>Total de mon épargne</span><div class=big>${f(t)}</div><div class="mut sm">Base de départ : ${f(S.base)} · jusqu’à ${ml(S.month)} inclus</div></div><div class=card><div class=row><b>Mois</b><b>Épargné · Total</b></div>${ms.map((m,i)=>{const v=calc(m).save,cum=S.base+sum(ms.slice(0,i+1).map(x=>calc(x).save));return`<div class=row><span style="text-transform:capitalize">${ml(m)}</span><span class="${v<0?"neg":""}">${f(v)} · <b>${f(cum)}</b></span></div>`}).join("")}</div><p class=mut>Le suivi commence en ${ml(start())}. L’épargne de chaque mois se calcule toute seule depuis ton budget.</p>`}
 function budget(c){const p=c.p,r=(l,k,v)=>`<label class=row><span>${l}</span><input type=number inputmode=numeric value="${v}" onchange="sp('${k}',this.value)"></label>`;
-return`<div class=card><b>Revenus</b>${r("Salaire","salaire",p.salaire)}${r("Business","business",p.business)}</div><div class=card><b>Dépenses prévues</b>${c.it.map(e=>r(e,"i:"+e,p.items[e])).join("")}<div class=row><span>Total</span><b>${f(c.pl)}</b></div></div><p class=mut>Un changement vaut pour ce mois et les suivants. Les mois passés ne bougent pas.</p>`}
+return`<div class=card><b>Revenus</b>${r("Salaire","salaire",p.salaire)}${r("Business","business",p.business)}</div><div class=card><b>Dépenses prévues</b>${c.it.map(e=>`<div class=row><span>${e}</span><span><input type=number inputmode=numeric style="max-width:110px;text-align:right" value="${p.items[e]}" onchange="sp('i:${e}',this.value)"> <button onclick="delItem('${e}')">✕</button></span></div>`).join("")}<div class=row><input id=ni placeholder="Nouvelle dépense (nom)"><input id=nv type=number inputmode=numeric placeholder="Montant"><button class=pr onclick="addItem()">Ajouter</button></div><div class=row><span>Total</span><b>${f(c.pl)}</b></div></div><p class=mut>Un changement vaut pour ce mois et les suivants. Les mois passés ne bougent pas.</p>`}
+const ensure=()=>{if(!S.plan[S.month])S.plan[S.month]=JSON.parse(JSON.stringify(P(S.month)))};
+function addItem(){const n=$("ni").value.trim().replace(/['"`<>&\\]/g,""),v=+$("nv").value||0;if(!n)return;ensure();const p=S.plan[S.month];if(p.items[n]!==undefined){setSt("Ce nom existe déjà");return}p.items[n]=v;save();render()}
+function delItem(e){ensure();delete S.plan[S.month].items[e];save();render()}
 function sp(k,v){v=+v||0;if(!S.plan[S.month])S.plan[S.month]=JSON.parse(JSON.stringify(P(S.month)));const p=S.plan[S.month];k.startsWith("i:")?p.items[k.slice(2)]=v:p[k]=v;save();render()}
 function journal(c){const tx=S.tx.filter(t=>ym(t.d)===S.month).sort((a,b)=>b.d.localeCompare(a.d));
 return`<div class=card><b>Noter une dépense</b><div class=row><select id=ge>${[...c.it,E].map(e=>`<option>${e}</option>`).join("")}</select><input id=ga type=number inputmode=numeric placeholder="Montant"></div><div class=row><input id=gd type=date value="${today()}"><input id=gn placeholder="Description"></div><button class=pr onclick="addTx()">Ajouter</button><p class=mut>« Épargne » = argent pris sur ton épargne : elle baisse.</p></div><div class=card>${tx.map(t=>`<div class=row><span>${t.d.slice(8)}/${t.d.slice(5,7)} · ${t.env}<br><small>${esc(t.note||"")}</small></span><b>${f(t.dep)} <button onclick="delTx(${t.id})">✕</button></b></div>`).join("")||"<span class=mut>Rien ce mois-ci</span>"}</div>`}
-function addTx(){const a=+$("ga").value,d=$("gd").value;if(!a||!d)return;S.tx.push({id:Date.now(),d,env:$("ge").value,dep:a,note:$("gn").value});S.month=ym(d);save();render()}
+function addTx(){const a=+$("ga").value,d=$("gd").value;if(!a||!d)return;S.tx.push({id:Date.now(),d,env:$("ge").value,dep:a,note:$("gn").value});if(ym(d)>=start())S.month=ym(d);save();render()}
 const delTx=i=>{S.tx=S.tx.filter(t=>t.id!=i);save();render()};
 const LS=[["owed","On me doit","Reçu","Si c’est un nouveau prêt, mets sa date : le montant baisse ton épargne ce mois-là. Un paiement reçu s’ajoute à l’épargne."],["debts","Je dois","Payé","Un paiement baisse ton épargne du mois où tu paies."],["biz","Business (clients)","Reçu",""]];
 function debts(){return LS.map(([k,t,b,hint])=>`<div class=card><b>${t}</b>${S[k].map((x,i)=>{const pd=sum(x.pays.map(q=>q.a)),r=Math.max(0,x.amt-pd);return`<div class=row><span>${esc(x.name)}<br><small>${f(pd)} sur ${f(x.amt)}</small></span><b class="${r?"":"okc"}">${r?f(r):"✔ soldé"}</b></div><div class=row><input id="p${k}${i}" type=number inputmode=numeric placeholder="${b} aujourd’hui"><button onclick="pay('${k}',${i})">${b}</button><button onclick="del('${k}',${i})">✕</button></div>`}).join("")}<div class=row><input id="n${k}" placeholder="Nom"><input id="m${k}" type=number inputmode=numeric placeholder="Montant">${k=="owed"?`<input id=dd type=date>`:""}<button class=pr onclick="add('${k}')">Ajouter</button></div>${hint?`<p class=mut>${hint}</p>`:""}</div>`).join("")}
 function pay(k,i){const a=+$("p"+k+i).value;if(!a)return;S[k][i].pays.push({d:today(),a});save();render()}
 const del=(k,i)=>{S[k].splice(i,1);save();render()};
 function add(k){const n=$("n"+k).value.trim(),a=+$("m"+k).value;if(!n||!a)return;const x={name:n,amt:a,pays:[]};if(k=="owed"&&$("dd").value)x.d=$("dd").value;S[k].push(x);save();render()}
-function settings(){return`<div class=card><b>Sauvegarde</b><p class=mut>Tes données restent sur ce téléphone. Fais une sauvegarde de temps en temps.</p><button class=pr onclick="bk()">Afficher et copier ma sauvegarde</button><textarea id=bt rows=5 style="width:100%;margin-top:8px;box-sizing:border-box" placeholder="Colle ici une sauvegarde à importer"></textarea><button onclick="imp()">Importer ce texte</button><p class=mut>Ou choisis un fichier de sauvegarde :</p><input type=file accept=".json,text/plain" onchange="impf(this)"></div><div class=card><b>Base et objectifs d’épargne</b><label class=row><span>Base d’épargne</span><input type=number inputmode=numeric value="${S.base}" onchange="S.base=+this.value||0;save();render()"></label>${S.goals.map((g,i)=>`<label class=row><span>Objectif ${i+1}</span><input type=number inputmode=numeric value="${g}" onchange="S.goals[${i}]=+this.value||0;save();render()"></label>`).join("")}</div>`}
+function settings(){return`<div class=card><b>Sauvegarde</b><p class=mut>Tes données restent sur ce téléphone. Fais une sauvegarde de temps en temps.</p><button class=pr onclick="bk()">Afficher et copier ma sauvegarde</button><textarea id=bt rows=5 style="width:100%;margin-top:8px;box-sizing:border-box" placeholder="Colle ici une sauvegarde à importer"></textarea><button onclick="imp()">Importer ce texte</button><p class=mut>Ou choisis un fichier de sauvegarde :</p><input type=file accept=".json,text/plain" onchange="impf(this)"></div><div class=card><b>Base et objectifs d’épargne</b><label class=row><span>Base d’épargne</span><input type=number inputmode=numeric value="${S.base}" onchange="S.base=+this.value||0;save();render()"></label>${S.goals.map((g,i)=>`<div class=row><input value="${esc(g.n)}" onchange="S.goals[${i}].n=this.value;save()"><input type=number inputmode=numeric value="${g.a}" onchange="S.goals[${i}].a=+this.value||0;save();render()"><button onclick="S.goals.splice(${i},1);save();render()">✕</button></div>`).join("")}<div class=row><input id=gn2 placeholder="Nom de l’objectif"><input id=ga2 type=number inputmode=numeric placeholder="Montant"><button class=pr onclick="addGoal()">Ajouter</button></div></div>`}
+function addGoal(){const n=$("gn2").value.trim(),a=+$("ga2").value;if(!n||!a)return;S.goals.push({n,a});save();render()}
 function bk(){const t=JSON.stringify(S);$("bt").value=t;try{navigator.clipboard.writeText(t)}catch(e){}setSt("Sauvegarde affichée et copiée")}
-function imp(){try{S=JSON.parse($("bt").value);save();tab=0;render()}catch(e){setSt("Texte invalide")}}
-function impf(i){const r=new FileReader();r.onload=()=>{try{S=JSON.parse(r.result);save();tab=0;render()}catch(e){setSt("Fichier invalide")}};i.files[0]&&r.readAsText(i.files[0])}
-function render(){const c=calc(S.month);$("app").innerHTML=`<div class=top><button onclick="mv(-1)">‹</button><b>${ml(S.month)}</b><button onclick="mv(1)">›</button></div>`+[home,budget,journal,debts,settings][tab](c)+`<p class=mut id=st>${st}</p>`;
-$("nav").innerHTML=["Accueil","Budget","Dépenses","Dettes","Réglages"].map((t,i)=>`<button class="${i==tab?"on":""}" onclick="tab=${i};render()">${t}</button>`).join("")}
+function imp(){try{S=JSON.parse($("bt").value);fix();save();tab=0;render()}catch(e){setSt("Texte invalide")}}
+function impf(i){const r=new FileReader();r.onload=()=>{try{S=JSON.parse(r.result);fix();save();tab=0;render()}catch(e){setSt("Fichier invalide")}};i.files[0]&&r.readAsText(i.files[0])}
+function render(){const c=calc(S.month);$("app").innerHTML=`<div class=top><button onclick="mv(-1)" ${S.month<=start()?"disabled":""}>‹</button><b>${ml(S.month)}</b><button onclick="mv(1)">›</button></div>`+[home,savings,budget,journal,debts,settings][tab](c)+`<p class=mut id=st>${st}</p>`;
+$("nav").innerHTML=["Accueil","Épargne","Budget","Dépenses","Dettes","Réglages"].map((t,i)=>`<button class="${i==tab?"on":""}" onclick="tab=${i};render()">${t}</button>`).join("")}
 const setSt=t=>{st=t;if($("st"))$("st").textContent=t};
 function save(){try{localStorage.setItem("bg",JSON.stringify(S))}catch(e){}if(ref){clearTimeout(save.t);save.t=setTimeout(()=>ref.set({j:JSON.stringify(S)}).then(()=>setSt("Sauvegardé dans ton compte"),()=>setSt("Sauvegarde sur cet appareil seulement")),600)}}
 try{const l=localStorage.getItem("bg");if(l)S=JSON.parse(l)}catch(e){}
+fix();
 render();
 if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
 </script></body></html>
